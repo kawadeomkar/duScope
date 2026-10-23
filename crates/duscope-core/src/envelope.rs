@@ -9,8 +9,7 @@
 //! (`src/schema_drift.rs`) compares each derived schema with its checked-in file
 //! under `schemas/`.
 
-/// A stand-in for the envelope types until phase 2, so that the schema drift
-/// test has a type to derive from.
+/// A stand-in for the envelope types, for the schema drift test until phase 2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct PlaceholderEnvelope {
