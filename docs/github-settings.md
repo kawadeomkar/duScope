@@ -16,7 +16,7 @@ under [Auditing](#auditing) read it again.
 - [x] Administrators are included (`enforce_admins`), so nobody bypasses the rules.
 - [x] Linear history is required.
 - [x] Force pushes and deletion of `main` are blocked.
-- [ ] Required status checks, with "Require branches to be up to date before
+- [x] Required status checks, with "Require branches to be up to date before
   merging" (`strict`). The checks are the jobs of
   [ci.yml](../.github/workflows/ci.yml) that the spec marks required:
   - `fmt`
@@ -99,7 +99,7 @@ under [Auditing](#auditing) read it again.
 - [x] The `GITHUB_TOKEN` is read-only by default and cannot approve pull requests.
   Workflows widen it per job; in ci.yml only the size comment gets
   `pull-requests: write`.
-- [ ] Actions must be pinned to a full commit SHA. ci.yml already pins every
+- [x] Actions must be pinned to a full commit SHA. ci.yml already pins every
   action, and a `p0_ci_01_*` test checks that. With this setting GitHub also
   refuses an unpinned action in any other workflow, such as release.yml (P0-CI-02).
 
@@ -107,7 +107,7 @@ under [Auditing](#auditing) read it again.
   gh api -X PUT repos/kawadeomkar/duscope/actions/permissions -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
   ```
 
-- [ ] Workflows from fork pull requests wait for approval, for every outside
+- [x] Workflows from fork pull requests wait for approval, for every outside
   contributor. Today only first-time contributors wait.
 
   ```sh
@@ -116,13 +116,13 @@ under [Auditing](#auditing) read it again.
 
 ## Security
 
-- [ ] Private vulnerability reporting, which `SECURITY.md` points reporters at.
+- [x] Private vulnerability reporting, which `SECURITY.md` points reporters at.
 
   ```sh
   gh api -X PUT repos/kawadeomkar/duscope/private-vulnerability-reporting
   ```
 
-- [ ] Dependabot alerts.
+- [x] Dependabot alerts.
 
   ```sh
   gh api -X PUT repos/kawadeomkar/duscope/vulnerability-alerts
@@ -132,7 +132,7 @@ under [Auditing](#auditing) read it again.
 
 ## Labels
 
-- [ ] The `no-changelog` label. The author sets it on a pull request with nothing
+- [x] The `no-changelog` label. The author sets it on a pull request with nothing
   user-visible, and the `changelog` check then accepts the pull request without a
   `changelog.d/<ID>.md` fragment.
 
