@@ -1,0 +1,42 @@
+[workspace]
+members = ["crates/*", "duscope"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kawadeomkar/duscope"
+homepage = "https://github.com/kawadeomkar/duscope"
+
+[workspace.dependencies]
+# The workspace crates, in publish order: each depends only on crates above it.
+duscope-walk = { path = "crates/duscope-walk", version = "0.0.1" }
+duscope-core = { path = "crates/duscope-core", version = "0.0.1" }
+duscope-treemap = { path = "crates/duscope-treemap", version = "0.0.1" }
+duscope-tui = { path = "crates/duscope-tui", version = "0.0.1" }
+duscope-mcp = { path = "crates/duscope-mcp", version = "0.0.1" }
+
+# Dev-dependencies. 0.x crates are pinned with `=`; crates at 1.0 or later take
+# the caret range with Cargo.lock as the real pin.
+cargo_metadata = "=0.23.1"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+unwrap_used = "deny"
+expect_used = "deny"
+print_stdout = "deny"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

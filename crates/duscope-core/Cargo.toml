@@ -1,0 +1,15 @@
+[package]
+name = "duscope-core"
+description = "Arena, accounting, SQLite index and queries for duscope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+duscope-walk.workspace = true
+
+[lints]
+workspace = true
