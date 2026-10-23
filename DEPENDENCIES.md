@@ -12,7 +12,7 @@ Every external crate a workspace crate depends on directly has a row here. The r
   - features trimmed to what is used
   - no second implementation of something the tree already has: one gitignore engine, one schema source, one query language
 - **Pins.** Versions are set once, in `[workspace.dependencies]`. A 0.x crate is pinned with `=`. A crate at 1.0 or later takes a caret requirement, and the committed `Cargo.lock` holds the exact version. A new crate starts at its newest release on the day its package starts. Pins change only in a `DEPS: <yyyy-mm>` pull request, which updates this file in the same commit.
-- **Licences.** MIT, Apache-2.0, BSD-3-Clause, ISC, OFL-1.1, Unicode-3.0 and Unicode-DFS-2016 (`[licenses]` in `deny.toml`).
+- **Licences.** MIT, MIT-0, Apache-2.0, BSD-3-Clause, ISC, OFL-1.1, Unicode-3.0, Unicode-DFS-2016 and Zlib (`[licenses]` in `deny.toml`). MIT-0 and Zlib were added by DEV-2 for jsonschema's dependencies.
 - **Never added.** tokio, rmcp, resvg, jaq-core, reqwest, hyper, openssl, objc2-core-services, catppuccin, supports-color, terminal_size, ansi_colours, directories, notify and fsevent-sys (`[bans]` in `deny.toml`, each with its reason).
 - **Graph.** One version of each crate (`multiple-versions = "deny"`), from crates.io only (`[sources]`), with no open RustSec advisory (`[advisories]`).
 - **Dev-dependencies** are held to the licence list but are exempt from the bans and the graph rules, because `[graph] exclude-dev` takes them out of every `cargo deny` check. That exemption lets rmcp serve as the MCP conformance oracle in tests without entering the binary.
