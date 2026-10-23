@@ -1,0 +1,73 @@
+# cargo-deny policy for duscope. DEPENDENCIES.md explains the rules and has one
+# row per crate. `just check` runs `cargo deny check licenses bans sources`;
+# `just check-full` (what CI runs) adds `advisories`.
+
+[graph]
+# The platforms duscope builds for: the four release targets, plus glibc Linux
+# for `cargo install` and CI. Windows is not supported, so crates that only
+# Windows pulls in stay out of every check.
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+]
+# Both Cargo features (`system-sqlite`, `pixels`) are shipped configurations.
+all-features = true
+# Dev-dependencies of the workspace crates are left out of every check, so
+# test-only crates such as rmcp (and the tokio under it) pass the bans.
+# duscope/tests/dependencies.rs checks their licences against the list below.
+exclude-dev = true
+
+[advisories]
+# The RustSec database. Vulnerabilities and unmaintained crates fail by default;
+# an exception is an `ignore` entry with a reason.
+unsound = "all"
+yanked = "deny"
+ignore = []
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+# This list is the policy, not an inventory, so a licence no crate uses yet is fine.
+unused-allowed-license = "allow"
+
+[licenses.private]
+# Unpublished workspace members (the test kit, the fixture generator) are never
+# distributed. Their dependencies are still checked.
+ignore = true
+
+[bans]
+multiple-versions = "deny"
+deny = [
+    { crate = "tokio", reason = "the binary is synchronous; tokio comes only with rmcp, a dev-dependency (D36)" },
+    { crate = "rmcp", reason = "the MCP protocol layer is in-tree; rmcp is the dev-only conformance oracle (D36)" },
+    { crate = "resvg", reason = "the SVG writer is in-tree and PNG goes through tiny-skia (D36)" },
+    { crate = "jaq-core", reason = "--jq was dropped from 1.0: SQL and --fields are the query languages (D36)" },
+    { crate = "reqwest", reason = "the binary opens no socket: no HTTP crates" },
+    { crate = "hyper", reason = "the binary opens no socket: no HTTP crates" },
+    { crate = "openssl", reason = "no network and no C beyond SQLite and libc" },
+    { crate = "objc2-core-services", reason = "FSEvents goes through eleven hand-written externs (D36)" },
+    { crate = "catppuccin", reason = "the palettes are vendored hex tables (D36)" },
+    { crate = "supports-color", reason = "duscope decides colour in its own order (D36)" },
+    { crate = "terminal_size", reason = "crossterm already reports the terminal size (D36)" },
+    { crate = "ansi_colours", reason = "the RGB-to-256 cube is in-tree (D36)" },
+    { crate = "directories", reason = "the cache directory is one in-tree function (D36)" },
+    { crate = "notify", reason = "hides FSEvents sinceWhen and swallows HistoryDone; FSEvents is in-tree (D36)" },
+    { crate = "fsevent-sys", reason = "lacks FSEventsCopyUUIDForDevice; FSEvents is in-tree (D36)" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

@@ -1,0 +1,24 @@
+# One grouped pull request a month for cargo and one for GitHub Actions. Each
+# lands as a `DEPS: <yyyy-mm>` commit that also updates DEPENDENCIES.md (see
+# "Updates" there).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: DEPS
+    groups:
+      cargo:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: DEPS
+    groups:
+      github-actions:
+        patterns: ["*"]
