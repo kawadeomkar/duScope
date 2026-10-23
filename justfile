@@ -111,6 +111,12 @@ repro target_dir="target/repro":
     export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}"
     export CARGO_INCREMENTAL=0
     export RUSTFLAGS="--remap-path-prefix={{justfile_directory()}}=/duscope --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
+    if [[ $(uname -s) == Darwin ]]; then
+      # ld64 records each object file's absolute path in the binary (its UUID survives
+      # stripping), so drop the target directory from those paths.
+      mkdir -p '{{target_dir}}'
+      RUSTFLAGS+=" -C link-arg=-Wl,-oso_prefix,$(cd '{{target_dir}}' && pwd -P)/"
+    fi
     cargo build --release --locked -p duscope --target-dir '{{target_dir}}'
     if command -v sha256sum >/dev/null; then sha256sum '{{target_dir}}/release/duscope'; else shasum -a 256 '{{target_dir}}/release/duscope'; fi
 
