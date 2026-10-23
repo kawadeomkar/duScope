@@ -111,12 +111,18 @@ fn run() -> Result<ExitCode, String> {
                 .record()
                 .map_err(|e| e.to_string())?
                 .ok_or("no record: run `just fixtures` first")?;
-            let problems =
-                mktree::verify(&out.tree(), &plan, &record).map_err(|e| e.to_string())?;
-            for p in &problems {
+            let report = mktree::verify(&out.tree(), &plan, &record).map_err(|e| e.to_string())?;
+            for p in &report.problems {
                 eprintln!("mktree: {p}");
             }
-            if !problems.is_empty() {
+            if !report.read_after_build.is_empty() {
+                eprintln!(
+                    "mktree: {} entries were read after the build (atime moved), e.g. {}",
+                    report.read_after_build.len(),
+                    report.read_after_build[0]
+                );
+            }
+            if !report.problems.is_empty() {
                 return Ok(ExitCode::FAILURE);
             }
             eprintln!(

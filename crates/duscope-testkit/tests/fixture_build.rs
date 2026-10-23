@@ -172,12 +172,21 @@ fn p0_test_01_tree_builds_within_budget() {
 fn p0_test_01_rebuild_lists_identically() {
     let env = TestEnv::new();
     with_first_build(|first| {
-        let problems = mktree::verify(&first.out.tree(), &first.plan, &first.record).unwrap();
+        let report = mktree::verify(&first.out.tree(), &first.plan, &first.record).unwrap();
         assert!(
-            problems.is_empty(),
+            report.problems.is_empty(),
             "the first build differs from the manifest:\n{}",
-            problems.join("\n")
+            report.problems.join("\n")
         );
+        if !report.read_after_build.is_empty() {
+            // On macOS, Spotlight reads new files (a `.png`, a `.pdf`) and the
+            // system moves their atime even when it lies in the future.
+            eprintln!(
+                "p0_test_01: {} entries were read after the build (atime moved), e.g. {}",
+                report.read_after_build.len(),
+                report.read_after_build[0]
+            );
+        }
         let find_first = gnu_find(&env, &first.out.tree());
 
         // A second run with the same manifest, as `just fixtures --force`.

@@ -319,7 +319,15 @@ fn p0_test_01_tree_matches_the_manifest() {
         "the tree was built from another manifest"
     );
     assert_eq!(fixtures.instant(), env.test_now());
-    let problems = mktree::verify(&fixtures.root(), plan, fixtures.record()).unwrap();
+    let report = mktree::verify(&fixtures.root(), plan, fixtures.record()).unwrap();
+    if !report.read_after_build.is_empty() {
+        eprintln!(
+            "p0_test_01: {} entries were read after the build (atime moved), e.g. {}",
+            report.read_after_build.len(),
+            report.read_after_build[0]
+        );
+    }
+    let problems = report.problems;
     assert!(
         problems.is_empty(),
         "{} differences, the first:\n{}",

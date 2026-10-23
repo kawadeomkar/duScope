@@ -30,7 +30,7 @@ pub mod record;
 pub mod rng;
 pub mod time;
 
-pub use inspect::{listing, verify};
+pub use inspect::{Report, listing, verify};
 pub use manifest::Manifest;
 pub use out::{OutDir, remove_tree};
 pub use plan::{Entry, Kind, Plan};

@@ -105,15 +105,45 @@ fn walk(root: &Path, rel: &mut Vec<u8>, out: &mut String) -> Result<()> {
     Ok(())
 }
 
+/// The outcome of [`verify`].
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Report {
+    /// Every way the tree differs from its plan; empty when it is right.
+    pub problems: Vec<String>,
+    /// Entries whose atime something moved by reading them after the build
+    /// (on macOS, Spotlight importing a `.png`, for example). They are not
+    /// problems: a read sets atime to the moment of the read, which lies
+    /// between the inode's ctime and now, while every planned atime lies
+    /// elsewhere, so a wrong or unset atime is still caught.
+    pub read_after_build: Vec<String>,
+}
+
+/// Whether an atime is one a read after the build left: later than the
+/// inode's last change (the build's last `utimes` or `chmod`) and no later
+/// than now.
+fn read_since_build(meta: &Metadata) -> bool {
+    let ctime = Stamp {
+        secs: meta.ctime(),
+        nanos: u32::try_from(meta.ctime_nsec()).unwrap_or(0),
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
+    let at = atime(meta);
+    at > ctime && at.secs <= now
+}
+
 /// Compares the tree at `root` with `plan` and the build `record`: every
 /// planned entry exists unless the record lists it absent, with the planned
 /// type, size, mode, mtime, atime, link count and symlink target, and no
 /// other entry exists. A directory that currently carries its test mode (a
 /// test holds the tree) must have exactly that mode, and what lies beneath
-/// it is not checked. Returns the mismatches (empty when the tree is right).
+/// it is not checked. An atime moved by a read after the build is reported
+/// apart (see [`Report::read_after_build`]).
 #[allow(clippy::too_many_lines)] // one check per property, read top to bottom
-pub fn verify(root: &Path, plan: &Plan, record: &Record) -> Result<Vec<String>> {
+pub fn verify(root: &Path, plan: &Plan, record: &Record) -> Result<Report> {
     let mut problems = Vec::new();
+    let mut read_after_build = Vec::new();
     let links = plan.link_counts();
     let mut expected = 0u64;
     // Directories found in their test mode; entries beneath are skipped.
@@ -195,7 +225,9 @@ pub fn verify(root: &Path, plan: &Plan, record: &Record) -> Result<Vec<String>> 
                 e.mtime.text()
             ));
         }
-        if atime(&meta) != e.atime {
+        if atime(&meta) != e.atime && read_since_build(&meta) {
+            read_after_build.push(shown.clone());
+        } else if atime(&meta) != e.atime {
             problems.push(format!(
                 "{shown}: atime {}, want {}",
                 atime(&meta).text(),
@@ -228,7 +260,10 @@ pub fn verify(root: &Path, plan: &Plan, record: &Record) -> Result<Vec<String>> 
             record.entries
         ));
     }
-    Ok(problems)
+    Ok(Report {
+        problems,
+        read_after_build,
+    })
 }
 
 /// Entries under `path`, itself included, not descending into `armed`.
