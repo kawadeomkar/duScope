@@ -1,0 +1,713 @@
+# The duscope reference tree, built by `just fixtures` (tests/fixtures/mktree)
+# under target/fixtures/tree and used by every test through duscope-testkit.
+#
+# A change to this file or to the generator that changes the tree changes the
+# manifest hash below, which a test checks; golden files depend on the tree,
+# so such a change is its own TEST package (plan/SPEC.md, Testing strategy).
+# `mktree --print-plan` prints the expanded manifest the hash covers: diff it
+# to review a change.
+#
+# Format 1:
+# - `instant`: every mtime and atime is relative to it; tests export it as
+#   DUSCOPE_TEST_NOW. It lies in the future on purpose: ctime (and btime) can
+#   never be set, so they are the real build time, and only a "now" later than
+#   any build lets `stale`'s `ctime < cutoff` hold. It is before 2038 so
+#   filesystems with 32-bit timestamps hold every value.
+# - `[[case]]`: named cases with explicit entries under `root`. Kinds: `dir`,
+#   `file = <size>` (generated content), `text = "<content>"`, `sparse =
+#   <apparent size>` with `data = ["<offset>+<length>", ...]`, `compressed =
+#   <size>`, `hardlink`/`clone = "<file>"` (relative to the case root, or to
+#   the tree root with a leading `/`), `symlink = "<target>"` (verbatim),
+#   `fifo`, `socket`, `many = <n>` (a directory of n empty files) and `chain =
+#   <n>` (n nested directories). Modifiers: `mode`, `test_mode` (applied only
+#   while a test holds the tree), `age` (instant minus mtime; `s h d w y`),
+#   `atime` (instant minus atime; default half the age, at most a year), and
+#   `nanos`. `%XX` in a path writes a raw byte.
+# - `[[generate]]`: seeded random subtrees (integer arithmetic only, so every
+#   platform expands them identically).
+# Sizes take K, M, G (powers of 1,024). Paths may not differ only in ASCII
+# case (APFS is case-insensitive by default).
+
+format = 1
+hash = "fdc7f0667018d42ff7cfff01ec9e851acbbae048a6f86c77a83ac06aa31cc850"
+instant = "2037-01-01T00:00:00Z"
+
+# Names for generated directories and files (lower-case ASCII only).
+words = [
+    "alpha", "archive", "assets", "atlas", "backup", "beacon", "bridge", "budget",
+    "cache", "canvas", "cargo", "chart", "client", "cobalt", "config", "core",
+    "data", "delta", "design", "draft", "echo", "editor", "ember", "engine",
+    "export", "fable", "falcon", "field", "final", "frame", "galaxy", "garden",
+    "graph", "harbor", "helix", "hollow", "icon", "index", "input", "island",
+    "jade", "journal", "kernel", "kite", "lambda", "ledger", "library", "lumen",
+    "maple", "matrix", "media", "meadow", "module", "nebula", "notes", "nova",
+    "oasis", "orbit", "output", "packet", "paper", "pixel", "planet", "prism",
+    "quartz", "query", "radar", "report", "river", "rocket", "sample", "scene",
+    "shadow", "signal", "source", "spark", "stack", "studio", "summit", "table",
+    "tango", "temp", "theme", "thread", "tide", "token", "trace", "travel",
+    "umbra", "union", "update", "vector", "velvet", "vertex", "view", "violet",
+    "wave", "widget", "willow", "window", "xenon", "yarrow", "yield", "zenith",
+]
+
+[defaults]
+dir_mode = 0o755
+file_mode = 0o644
+age = "30d"
+
+# Extension pools for generated files by duscope class (`""` is no extension).
+# The tar.* suffixes stay whole, as duscope's `ext` rule keeps them.
+[extensions]
+archives = ["zip", "tar", "gz", "tgz", "xz", "7z", "dmg", "iso", "tar.gz", "tar.zst"]
+binaries = ["o", "a", "so", "dylib", "rlib", "rmeta", "wasm", "bin", "node", "pyc", "class", "jar"]
+code = ["rs", "py", "js", "mjs", "ts", "tsx", "go", "c", "h", "cc", "hpp", "swift", "java", "kt", "rb", "sh", "css", "html", "vue"]
+data = ["json", "csv", "db", "sqlite", "plist", "xml", "yaml", "parquet", "log", "dat", "idx", "ldb", "toml"]
+docs = ["md", "txt", "pdf", "docx", "pages", "rtf", "key", "pptx", "xlsx", "epub", "tex"]
+media = ["jpg", "jpeg", "png", "heic", "gif", "webp", "svg", "mp4", "mov", "mp3", "m4a", "flac", "wav"]
+other = ["", "tmp", "bak", "lock", "d", "part", "swp"]
+
+# ---------------------------------------------------------------------------
+# Edge cases, one directory each under cases/.
+
+[[case]]
+name = "hard-links"
+about = "One 256 KiB inode linked from three directories (nlink 4), a pair, and a linked empty file: hard-link charging to the lowest pre-order id, links_outside_subtree, du parity with links (P1-CORE-03, P2-QRY-04)"
+root = "cases/hard-links"
+entries = [
+    { path = "a/original.bin", file = "256K", age = "90d" },
+    { path = "a/same-dir.bin", hardlink = "a/original.bin" },
+    { path = "b/other-dir.bin", hardlink = "a/original.bin" },
+    { path = "c/deep/nested.bin", hardlink = "a/original.bin" },
+    { path = "pair/one.txt", file = "4K", age = "10d" },
+    { path = "pair/two.txt", hardlink = "pair/one.txt" },
+    { path = "empty/zero", file = 0 },
+    { path = "empty/zero-link", hardlink = "empty/zero" },
+]
+
+[[case]]
+name = "clones"
+about = "A 2 MiB file and two clones, one in a subdirectory: cp -c (clonefile) on APFS, cp --reflink=always on btrfs/XFS, plain copies elsewhere (recorded as skipped) (P1-WALK-07, P1-CORE-03)"
+root = "cases/clones"
+entries = [
+    { path = "original.img", file = "2M", age = "60d" },
+    { path = "clone-1.img", clone = "original.img", age = "30d" },
+    { path = "nested/clone-2.img", clone = "original.img", age = "20d" },
+]
+
+[[case]]
+name = "sparse"
+about = "Sparse files: holes only, data-hole-data, and data at the tail; apparent far above allocated (du --apparent-size parity). Every hole is at least 31 MiB: APFS zero-fills holes under 16 MiB"
+root = "cases/sparse"
+entries = [
+    { path = "hole-only.bin", sparse = "64M" },
+    { path = "data-hole-data.bin", sparse = "64M", data = ["0+64K", "65472K+64K"] },
+    { path = "tail.bin", sparse = "32M", data = ["32764K+4K"] },
+]
+
+[[case]]
+name = "compressed"
+about = "Files stored with filesystem compression: ditto --hfsCompression on macOS (ditto leaves files of 16 KiB and less uncompressed), chattr +c where the filesystem supports it, else uncompressed (recorded as skipped)"
+root = "cases/compressed"
+entries = [
+    { path = "text-1m.txt", compressed = "1M" },
+    { path = "small.txt", compressed = "64K" },
+]
+
+[[case]]
+name = "unreadable"
+about = "Exactly one directory (closed/) with mode 000 while a test holds the tree, with content beneath, beside a readable sibling: error_count = 1, partial_read (P1-WALK-08). Mode 0755 at rest so cargo clean and caches can walk it"
+root = "cases/unreadable"
+entries = [
+    { path = "closed", dir = true, test_mode = 0o000 },
+    { path = "closed/a.txt", file = "8K" },
+    { path = "closed/sub/b.txt", file = "8K" },
+    { path = "open/c.txt", file = "8K" },
+]
+
+[[case]]
+name = "permissions"
+about = "An empty mode-000 directory, a listable but unsearchable (0444) directory whose children cannot be stat'ed, a private 0700 directory, a sticky directory, read-only and executable files"
+root = "cases/permissions"
+entries = [
+    { path = "empty-closed", dir = true, test_mode = 0o000 },
+    { path = "list-only", dir = true, test_mode = 0o444 },
+    { path = "list-only/x.txt", file = "1K" },
+    { path = "list-only/y.txt", file = "1K" },
+    { path = "list-only/z.txt", file = "1K" },
+    { path = "private", dir = true, mode = 0o700 },
+    { path = "private/secret.txt", file = 100, mode = 0o600 },
+    { path = "sticky", dir = true, mode = 0o1777 },
+    { path = "readonly.txt", file = 100, mode = 0o444 },
+    { path = "exec.sh", file = 100, mode = 0o755 },
+]
+
+[[case]]
+name = "non-utf8-names"
+about = "Names that are not valid UTF-8 (Latin-1, lone continuation bytes, overlong and surrogate encodings, a directory with a file inside), and a valid name whose symlink target is not UTF-8: name plus name_raw. APFS refuses such names (recorded as skipped with the entries absent)"
+root = "cases/bytes"
+entries = [
+    { path = "latin1-caf%E9.txt", file = 100 },
+    { path = "%FF%FE.bin", file = 100 },
+    { path = "bad-continuation-%C3%28.txt", file = 100 },
+    { path = "overlong-%C0%AF.txt", file = 100 },
+    { path = "surrogate-%ED%A0%80.txt", file = 100 },
+    { path = "dir-%FF/inside.txt", file = 100 },
+    { path = "link-to-latin1", symlink = "caf%E9" },
+]
+
+[[case]]
+name = "special-names"
+about = "Valid but awkward names: spaces, tab, newline, escape sequence, leading dash, quotes, glob characters, colon, emoji, CJK, a 255-byte name, NFC and NFD spellings of the same name in separate directories (normalisation-insensitive volumes), mixed case"
+root = "cases/names"
+entries = [
+    { path = "with space.txt", file = 10 },
+    { path = " leading-space.txt", file = 10 },
+    { path = "trailing-space.txt ", file = 10 },
+    { path = "tab%09here.txt", file = 10 },
+    { path = "newline%0Ahere.txt", file = 10 },
+    { path = "escape-%1B[31mred%1B[0m.txt", file = 10 },
+    { path = "-leading-dash.txt", file = 10 },
+    { path = "back\\slash.txt", file = 10 },
+    { path = "quote\"double.txt", file = 10 },
+    { path = "quote'single.txt", file = 10 },
+    { path = "glob*?[1].txt", file = 10 },
+    { path = "colon:name.txt", file = 10 },
+    { path = "percent%25.txt", file = 10 },
+    { path = "emoji-📦.txt", file = 10 },
+    { path = "日本語のファイル.txt", file = 10 },
+    { path = "MiXeD-Case.TXT", file = 10 },
+    { path = ".hidden", file = 10 },
+    { path = "...", file = 10 },
+    { path = "nfc/caf%C3%A9.txt", file = 10 },
+    { path = "nfd/cafe%CC%81.txt", file = 10 },
+    { path = "long/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", file = 10 },
+]
+
+[[case]]
+name = "deep-path"
+about = "A 200-level chain of one-letter directories with a file at the bottom: recursion depth and long paths (kept under macOS PATH_MAX of 1,024)"
+root = "cases/deep"
+entries = [
+    { path = "chain", chain = 200, name = "d", leaf = "bottom.txt", leaf_size = "4K" },
+]
+
+[[case]]
+name = "wide-directory"
+about = "One directory with 100,000 empty files: every worker lists one huge directory (P1-WALK-02 batches of 1,024, P1-WALK-03 bulk reads)"
+root = "cases/wide"
+entries = [
+    { path = ".", many = 100000, prefix = "f", width = 6, age = "200d" },
+]
+
+[[case]]
+name = "symlinks"
+about = "Links to a file and a directory, a chain, a dangling relative and a dangling absolute link, a self-loop, a two-link loop, a link to its own directory and a cycle through an ancestor (all inside this case): never followed by default; --follow-symlinks terminates with ELOOP recorded (P1-WALK-08)"
+root = "cases/symlinks"
+entries = [
+    { path = "target.txt", file = "2K" },
+    { path = "real-dir/inside.txt", file = "2K" },
+    { path = "to-file", symlink = "target.txt" },
+    { path = "to-dir", symlink = "real-dir" },
+    { path = "chain-1", symlink = "chain-2" },
+    { path = "chain-2", symlink = "target.txt" },
+    { path = "dangling", symlink = "missing.txt" },
+    { path = "absolute-dangling", symlink = "/nonexistent/duscope-fixture-target" },
+    { path = "self", symlink = "self" },
+    { path = "loop-a", symlink = "loop-b" },
+    { path = "loop-b", symlink = "loop-a" },
+    { path = "here", symlink = "." },
+    { path = "cycle/a/b/back-to-a", symlink = ".." },
+    { path = "cycle/a/file.txt", file = "1K" },
+    { path = "long-target", symlink = "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt" },
+]
+
+[[case]]
+name = "special-files"
+about = "A FIFO and a Unix-domain socket: kinds fifo and socket, zero allocated bytes"
+root = "cases/special"
+entries = [
+    { path = "fifo", fifo = true },
+    { path = "socket", socket = true },
+]
+
+[[case]]
+name = "timestamps"
+about = "One file per age bucket (under a day, a week, a month, a year, older), the epoch, before 1970, after the instant (clock skew), sub-second mtime, atime older than mtime, and an old atime for stale --atime"
+root = "cases/timestamps"
+entries = [
+    { path = "hour.txt", file = 100, age = "1h" },
+    { path = "today.txt", file = 100, age = "12h" },
+    { path = "this-week.txt", file = 100, age = "5d" },
+    { path = "this-month.txt", file = 100, age = "20d" },
+    { path = "this-year.txt", file = 100, age = "200d" },
+    { path = "older.txt", file = 100, age = "3y" },
+    { path = "ancient.txt", file = 100, age = "20y" },
+    { path = "epoch.txt", file = 100, age = "24472d" },
+    { path = "before-1970.txt", file = 100, age = "68y" },
+    { path = "future.txt", file = 100, age = "-30d" },
+    { path = "subsecond.txt", file = 100, age = "2d", nanos = 123456789 },
+    { path = "atime-before-mtime.txt", file = 100, age = "1d", atime = "2y" },
+    { path = "old-atime.txt", file = 100, age = "400d", atime = "400d" },
+]
+
+[[case]]
+name = "extensions"
+about = "The ext rule: the five tar.* suffixes kept whole, upper and mixed case, dotfiles and undotted names (empty ext), a trailing dot, 16- and 17-byte suffixes, characters outside [A-Za-z0-9+~-], executables without an extension"
+root = "cases/extensions"
+entries = [
+    { path = "a.tar.gz", file = "4K" },
+    { path = "b.tar.bz2", file = "4K" },
+    { path = "c.tar.xz", file = "4K" },
+    { path = "d.tar.zst", file = "4K" },
+    { path = "e.tar.lz4", file = "4K" },
+    { path = "plain.gz", file = "4K" },
+    { path = "MiXeD.Tar.Gz", file = "4K" },
+    { path = "PHOTO.JPG", file = "4K" },
+    { path = "movie.MP4", file = "4K" },
+    { path = "archive.tar.gz.part", file = "4K" },
+    { path = "version-1.2.3", file = "4K" },
+    { path = ".bashrc", file = 100 },
+    { path = ".config.json", file = 100 },
+    { path = "Makefile", file = 100 },
+    { path = "README", file = 100 },
+    { path = "trailing-dot.", file = 100 },
+    { path = "sixteen.abcdefghijklmnop", file = 100 },
+    { path = "seventeen.abcdefghijklmnopq", file = 100 },
+    { path = "weird.c#", file = 100 },
+    { path = "plus.c++", file = 100 },
+    { path = "tilde.txt~", file = 100 },
+    { path = "tool", file = "8K", mode = 0o755 },
+    { path = "run.sh", file = 100, mode = 0o755 },
+]
+
+[[case]]
+name = "empty"
+about = "Empty files and empty directories, nested"
+root = "cases/empty"
+entries = [
+    { path = "empty-dir", dir = true },
+    { path = "nested/empty/dirs", dir = true },
+    { path = "empty-file", file = 0 },
+    { path = "nested/empty-file", file = 0 },
+]
+
+[[case]]
+name = "cachedir-tag"
+about = "CACHEDIR.TAG detection (regular file, 43-byte signature): a valid tag with the usual comment, an exact 43-byte tag, a wrong signature, a truncated tag, a directory named CACHEDIR.TAG and a symlink to a valid tag (P2-QRY-05)"
+root = "cases/cachedir"
+entries = [
+    { path = "valid/CACHEDIR.TAG", text = "Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag.\n# For information about cache directory tags see https://bford.info/cachedir/\n" },
+    { path = "valid/blob.bin", file = "64K" },
+    { path = "exact/CACHEDIR.TAG", text = "Signature: 8a477f597d28d172789f06886806bc55" },
+    { path = "exact/blob.bin", file = "16K" },
+    { path = "wrong-signature/CACHEDIR.TAG", text = "Signature: 00000000000000000000000000000000\n" },
+    { path = "wrong-signature/blob.bin", file = "16K" },
+    { path = "truncated/CACHEDIR.TAG", text = "Signature: 8a477f59" },
+    { path = "truncated/blob.bin", file = "16K" },
+    { path = "tag-is-dir/CACHEDIR.TAG/inside", file = 10 },
+    { path = "tag-is-symlink/CACHEDIR.TAG", symlink = "../valid/CACHEDIR.TAG" },
+    { path = "tag-is-symlink/blob.bin", file = "16K" },
+]
+
+[[case]]
+name = "cache-names-without-markers"
+about = "Cache directory names with no marker in any ancestor: absent from caches unless --loose (P2-QRY-05: a target without Cargo.toml)"
+root = "cases/no-marker"
+entries = [
+    { path = "target/debug/leftover", file = "32K" },
+    { path = "node_modules/pkg/index.js", file = "2K" },
+    { path = "build/out.o", file = "8K" },
+    { path = "vendor/lib.php", file = "2K" },
+    { path = "Pods/Lib.swift", file = "2K" },
+    { path = ".venv/pyvenv.cfg", file = 100 },
+    { path = "__pycache__/mod.cpython-312.pyc", file = "2K" },
+    { path = ".gradle/caches.bin", file = "4K" },
+    { path = "DerivedData/stray.o", file = "4K" },
+]
+
+# ---------------------------------------------------------------------------
+# A home directory shaped like the proposal's example session: at depth 2,
+# Library/Containers, dev/target, Movies, dev/node_modules and (cut through
+# Library/Developer/Xcode) DerivedData are the largest, in that order.
+
+[[case]]
+name = "home"
+about = "A home directory shaped like the proposal's example session (top --depth 2 order, cut-through of Library/Developer/Xcode/DerivedData), with IndexedDB, an app bundle, dotfiles, stale downloads and generated bulk (P1-CLI-03, P1-MAP-02)"
+root = "home"
+entries = [
+    { path = "Movies/holiday-2035.mov", file = "7M", age = "500d" },
+    { path = "Movies/wedding.mp4", file = "6M", age = "3y" },
+    { path = "Movies/screen-recording.mov", file = "5M", age = "20d" },
+    { path = "Movies/lecture-01.mkv", file = "4M", age = "2y" },
+    { path = "Movies/lecture-02.mkv", file = "4M", age = "2y" },
+    { path = "Movies/clips/clip-a.mov", file = "2M", age = "10d" },
+    { path = "Movies/clips/clip-b.mov", file = "2M", age = "11d" },
+    { path = "Movies/.DS_Store", file = "6K" },
+    { path = "Downloads/Xcode_16.1.xip", file = "3M", age = "2y", atime = "2y" },
+    { path = "Downloads/ubuntu-24.04.1-live-server-arm64.iso", file = "1536K", age = "800d", atime = "700d" },
+    { path = "Downloads/old-backup.zip", file = "800K", age = "900d", atime = "800d" },
+    { path = "Downloads/photo-dump.tar.gz", file = "700K", age = "400d" },
+    { path = "Downloads/setup.dmg", file = "512K", age = "3d" },
+    { path = "Downloads/invoice-2036-11.pdf", file = "180K", age = "40d" },
+    { path = "Downloads/notes.txt", file = "2K", age = "2h" },
+    { path = "Pictures/beach.jpg", file = "300K", age = "1y" },
+    { path = "Documents/beach-link.jpg", hardlink = "Pictures/beach.jpg" },
+    { path = "dev/Cargo.toml", file = 600, age = "100d" },
+    { path = "dev/Cargo.lock", file = "40K", age = "100d" },
+    { path = "dev/package.json", file = 900, age = "60d" },
+    { path = "dev/package-lock.json", file = "120K", age = "60d" },
+    { path = "Library/Preferences/com.apple.finder.plist", file = "12K", age = "2d" },
+    { path = "Library/Preferences/com.example.editor.plist", file = "3K", age = "200d" },
+    { path = "Library/Application Support/Google/Chrome/Default/IndexedDB/https_example.com_0.indexeddb.leveldb/000003.log", file = "96K", age = "1d" },
+    { path = "Library/Application Support/Google/Chrome/Default/IndexedDB/https_example.com_0.indexeddb.leveldb/CURRENT", text = "MANIFEST-000001\n", age = "40d" },
+    { path = "Library/Application Support/Google/Chrome/Default/IndexedDB/https_example.com_0.indexeddb.leveldb/MANIFEST-000001", file = "1K", age = "40d" },
+    { path = "Library/Application Support/Google/Chrome/Default/IndexedDB/https_mail.example.com_0.indexeddb.blob/1/00/1", file = "40K", age = "5d" },
+    { path = "Library/Developer/Xcode/DerivedData/MyApp-bvtusvmqcbxgdffdcnwdbvhbstst/info.plist", file = "1K", age = "7d" },
+    { path = "Library/Developer/Xcode/DerivedData/MyApp-bvtusvmqcbxgdffdcnwdbvhbstst/Build/Products/Debug/MyApp.app/Contents/MacOS/MyApp", file = "900K", mode = 0o755, age = "7d" },
+    { path = "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)/Info.plist", file = "1K", age = "300d" },
+    { path = "Applications/Example.app/Contents/Info.plist", file = "2K", age = "100d" },
+    { path = "Applications/Example.app/Contents/MacOS/Example", file = "1536K", mode = 0o755, age = "100d" },
+    { path = "Applications/Example.app/Contents/Resources/AppIcon.icns", file = "200K", age = "100d" },
+    { path = "Applications/Example.app/Contents/Frameworks/Sparkle.framework/Versions/A/Sparkle", file = "600K", mode = 0o755, age = "100d" },
+    { path = "Applications/Example.app/Contents/Frameworks/Sparkle.framework/Versions/A/Resources/Info.plist", file = "1K", age = "100d" },
+    { path = "Applications/Example.app/Contents/Frameworks/Sparkle.framework/Versions/Current", symlink = "A", age = "100d" },
+    { path = "Applications/Example.app/Contents/Frameworks/Sparkle.framework/Sparkle", symlink = "Versions/Current/Sparkle", age = "100d" },
+    { path = "Applications/Example.app/Contents/Frameworks/Sparkle.framework/Resources", symlink = "Versions/Current/Resources", age = "100d" },
+    { path = ".bashrc", file = "3K", age = "2y" },
+    { path = ".zshrc", file = "2K", age = "50d" },
+    { path = ".gitconfig", file = 300, age = "1y" },
+    { path = ".ssh", dir = true, mode = 0o700 },
+    { path = ".ssh/config", file = 400, mode = 0o600, age = "300d" },
+    { path = ".ssh/id_ed25519.pub", file = 100, age = "2y" },
+]
+
+# Project directories with a marker for every caches.toml rule: node_modules,
+# .next, .nuxt, .turbo, .parcel-cache <- package.json; target <- Cargo.toml;
+# .venv, venv, __pycache__, .mypy_cache, .pytest_cache, .ruff_cache, .tox <-
+# pyproject.toml, setup.py or requirements.txt; build, .gradle <- build.gradle,
+# build.gradle.kts or CMakeLists.txt; Pods <- Podfile; vendor <- composer.json.
+# DerivedData under Library/Developer/Xcode is in `home`; CACHEDIR.TAG has its
+# own case. go-mod/vendor has no composer.json and is not a cache.
+[[case]]
+name = "cache-projects"
+about = "One project per cache rule and marker, markers in the parent and in a farther ancestor, nested node_modules, a cargo target with its CACHEDIR.TAG (P1-CORE-04, P2-QRY-05 golden: npm, cargo, python, gradle, pods, composer)"
+root = "home/Projects"
+entries = [
+    { path = "npm-app/package.json", file = 700 },
+    { path = "npm-app/package-lock.json", file = "60K" },
+    { path = "npm-app/src/index.js", file = "3K" },
+    { path = "npm-app/node_modules/left-pad/package.json", file = 500 },
+    { path = "npm-app/node_modules/left-pad/index.js", file = 600 },
+    { path = "npm-app/node_modules/lodash/package.json", file = 800 },
+    { path = "npm-app/node_modules/lodash/lodash.js", file = "540K" },
+    { path = "npm-app/node_modules/lodash/fp/map.js", file = 200 },
+    { path = "npm-app/node_modules/eslint/bin/eslint.js", file = "4K", mode = 0o755 },
+    { path = "npm-app/node_modules/.bin/eslint", symlink = "../eslint/bin/eslint.js" },
+    { path = "npm-app/node_modules/outer/node_modules/inner/index.js", file = "1K" },
+    { path = "npm-app/.next/cache/webpack/client-development/0.pack", file = "300K" },
+    { path = "npm-app/.next/server/app.js", file = "20K" },
+    { path = "npm-app/.turbo/cookies/1.cookie", file = 100 },
+    { path = "npm-app/.parcel-cache/data.mdb", file = "128K" },
+    { path = "nuxt-app/package.json", file = 600 },
+    { path = "nuxt-app/.nuxt/dist/client.js", file = "48K" },
+    { path = "nuxt-app/node_modules/vue/index.js", file = "90K" },
+    { path = "monorepo/package.json", file = 400 },
+    { path = "monorepo/packages/web/package.json", file = 300 },
+    { path = "monorepo/packages/web/node_modules/react/index.js", file = "80K" },
+    { path = "monorepo/tools/scratch/node_modules/helper/index.js", file = "8K" },
+    { path = "monorepo/.turbo/runs/run-1.json", file = "2K" },
+    { path = "rust-cli/Cargo.toml", file = 400 },
+    { path = "rust-cli/Cargo.lock", file = "24K" },
+    { path = "rust-cli/src/main.rs", file = "6K" },
+    { path = "rust-cli/target/CACHEDIR.TAG", text = "Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by cargo.\n# For information about cache directory tags see https://bford.info/cachedir/\n" },
+    { path = "rust-cli/target/debug/rust-cli", file = "2M", mode = 0o755 },
+    { path = "rust-cli/target/debug/deps/rust_cli-0123456789abcdef.d", file = 900 },
+    { path = "rust-cli/target/debug/deps/librust_cli-0123456789abcdef.rlib", file = "400K" },
+    { path = "rust-cli/target/debug/incremental/rust_cli-1a2b3c/s-abc/dep-graph.bin", file = "64K" },
+    { path = "rust-cli/target/release/rust-cli", file = "1M", mode = 0o755 },
+    { path = "rust-workspace/Cargo.toml", file = 300 },
+    { path = "rust-workspace/crates/core/Cargo.toml", file = 300 },
+    { path = "rust-workspace/crates/core/src/lib.rs", file = "12K" },
+    { path = "rust-workspace/crates/cli/Cargo.toml", file = 300 },
+    { path = "rust-workspace/crates/cli/src/main.rs", file = "4K" },
+    { path = "rust-workspace/target/debug/libcore.rlib", file = "256K" },
+    { path = "py-pyproject/pyproject.toml", file = 800 },
+    { path = "py-pyproject/src/pkg/__init__.py", file = 0 },
+    { path = "py-pyproject/src/pkg/__pycache__/__init__.cpython-312.pyc", file = 200 },
+    { path = "py-pyproject/.venv/pyvenv.cfg", file = 200 },
+    { path = "py-pyproject/.venv/bin/python3.12", file = "8K", mode = 0o755 },
+    { path = "py-pyproject/.venv/bin/python", symlink = "python3.12" },
+    { path = "py-pyproject/.venv/lib/python3.12/site-packages/requests/__init__.py", file = "5K" },
+    { path = "py-pyproject/.venv/lib/python3.12/site-packages/requests/api.py", file = "6K" },
+    { path = "py-pyproject/.venv/lib/python3.12/site-packages/six.py", file = "34K" },
+    { path = "py-pyproject/.venv/lib/python3.12/site-packages/requests-2.32.3.dist-info/METADATA", file = "4K" },
+    { path = "py-pyproject/.mypy_cache/3.12/pkg/__init__.data.json", file = "2K" },
+    { path = "py-pyproject/.pytest_cache/v/cache/lastfailed", file = 50 },
+    { path = "py-pyproject/.ruff_cache/0.6.9/1234567890", file = "1K" },
+    { path = "py-pyproject/.tox/py312/lib/python3.12/site-packages/pluggy/__init__.py", file = "2K" },
+    { path = "py-setup/setup.py", file = "1K" },
+    { path = "py-setup/venv/pyvenv.cfg", file = 200 },
+    { path = "py-setup/venv/lib/python3.11/site-packages/numpy/__init__.py", file = "12K" },
+    { path = "py-requirements/requirements.txt", file = 200 },
+    { path = "py-requirements/app/main.py", file = "3K" },
+    { path = "py-requirements/app/__pycache__/main.cpython-311.pyc", file = "4K" },
+    { path = "gradle-app/build.gradle", file = "1K" },
+    { path = "gradle-app/settings.gradle", file = 100 },
+    { path = "gradle-app/src/main/java/App.java", file = "2K" },
+    { path = "gradle-app/build/classes/java/main/App.class", file = "3K" },
+    { path = "gradle-app/build/libs/app.jar", file = "300K" },
+    { path = "gradle-app/.gradle/8.10/fileHashes/fileHashes.bin", file = "40K" },
+    { path = "gradle-kts/build.gradle.kts", file = "1K" },
+    { path = "gradle-kts/build/tmp/compileKotlin/cache.bin", file = "20K" },
+    { path = "cmake-app/CMakeLists.txt", file = 500 },
+    { path = "cmake-app/src/main.c", file = "2K" },
+    { path = "cmake-app/build/CMakeCache.txt", file = "30K" },
+    { path = "cmake-app/build/CMakeFiles/app.dir/main.c.o", file = "8K" },
+    { path = "cmake-app/build/app", file = "40K", mode = 0o755 },
+    { path = "ios-app/Podfile", file = 300 },
+    { path = "ios-app/Podfile.lock", file = "2K" },
+    { path = "ios-app/Pods/Manifest.lock", file = "2K" },
+    { path = "ios-app/Pods/Alamofire/Source/Alamofire.swift", file = "60K" },
+    { path = "ios-app/Pods/Pods.xcodeproj/project.pbxproj", file = "80K" },
+    { path = "php-app/composer.json", file = 400 },
+    { path = "php-app/composer.lock", file = "20K" },
+    { path = "php-app/vendor/autoload.php", file = 200 },
+    { path = "php-app/vendor/monolog/monolog/src/Logger.php", file = "24K" },
+    { path = "go-mod/go.mod", file = 200 },
+    { path = "go-mod/vendor/github.com/pkg/errors/errors.go", file = "8K" },
+]
+
+[[case]]
+name = "git-repo"
+about = "A minimal git repository with an unborn main branch (valid HEAD and config) and a .gitignore with an ignored file, an ignored directory and a $-precious entry; placeholder loose objects under .git/objects (never referenced, so no git command reads them) (by-type .git/objects, P2-QRY-04 git facts)"
+root = "home/Projects/notes-repo"
+entries = [
+    { path = ".git/HEAD", text = "ref: refs/heads/main\n" },
+    { path = ".git/config", text = "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n" },
+    { path = ".git/description", text = "Unnamed repository; edit this file 'description' to name the repository.\n" },
+    { path = ".git/info/exclude", text = "# git ls-files --others --exclude-from=.git/info/exclude\n" },
+    { path = ".git/refs/heads", dir = true },
+    { path = ".git/refs/tags", dir = true },
+    { path = ".git/objects/info", dir = true },
+    { path = ".git/objects/pack", dir = true },
+    { path = ".git/objects/3b/18e512dba79e4c8300dd08aeb37f8e728b8dad", file = 120 },
+    { path = ".git/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d", file = "2K" },
+    { path = ".git/objects/e6/9de29bb2d1d6434b8b29ae775ad8c2e48c5391", file = 15 },
+    { path = ".gitignore", text = "*.log\n/drafts/\n$important.cache\n" },
+    { path = "notes.md", file = "6K" },
+    { path = "debug.log", file = "12K" },
+    { path = "important.cache", file = "8K" },
+    { path = "drafts/idea.md", file = "1K" },
+]
+
+# ---------------------------------------------------------------------------
+# Generated bulk of the home directory (about 49,000 entries).
+
+[[generate]]
+case = "home"
+root = "home/Library/Containers"
+seed = 101
+dirs = 2400
+files = 12000
+max_depth = 7
+size_max = "12K"
+size_skew = 3
+empty_pct = 15
+age_min = "1h"
+age_max = "4y"
+age_skew = 2
+classes = { data = 8, code = 1, media = 1, docs = 1, other = 2 }
+
+[[generate]]
+case = "home"
+root = "home/dev/target"
+seed = 102
+dirs = 300
+files = 3800
+max_depth = 5
+size_max = "64K"
+size_skew = 3
+empty_pct = 3
+age_min = "1h"
+age_max = "90d"
+age_skew = 2
+classes = { binaries = 8, other = 2, data = 1 }
+
+[[generate]]
+case = "home"
+root = "home/dev/node_modules"
+seed = 103
+dirs = 1800
+files = 4800
+max_depth = 6
+size_max = "8K"
+size_skew = 3
+empty_pct = 10
+age_min = "1d"
+age_max = "2y"
+age_skew = 2
+classes = { code = 10, docs = 2, data = 2, other = 1 }
+
+[[generate]]
+case = "home"
+root = "home/Library/Developer/Xcode/DerivedData/MyApp-bvtusvmqcbxgdffdcnwdbvhbstst/Build"
+seed = 104
+dirs = 100
+files = 750
+max_depth = 6
+size_max = "64K"
+size_skew = 2
+empty_pct = 5
+age_min = "1h"
+age_max = "30d"
+age_skew = 2
+classes = { binaries = 6, data = 2, code = 1 }
+
+[[generate]]
+case = "home"
+root = "home/Documents"
+seed = 105
+dirs = 400
+files = 2000
+max_depth = 5
+size_max = "16K"
+size_skew = 2
+empty_pct = 20
+age_min = "1h"
+age_max = "10y"
+age_skew = 2
+classes = { docs = 6, data = 2, media = 1, archives = 1 }
+
+[[generate]]
+case = "home"
+root = "home/Library/Caches"
+seed = 106
+dirs = 300
+files = 1800
+max_depth = 5
+size_max = "8K"
+size_skew = 2
+empty_pct = 30
+age_min = "1h"
+age_max = "1y"
+age_skew = 3
+classes = { data = 5, other = 3, binaries = 1 }
+
+[[generate]]
+case = "home"
+root = "home/Library/Application Support"
+seed = 107
+dirs = 250
+files = 1500
+max_depth = 6
+size_max = "8K"
+size_skew = 2
+empty_pct = 25
+age_min = "1h"
+age_max = "3y"
+age_skew = 2
+classes = { data = 6, code = 1, other = 2 }
+
+[[generate]]
+case = "home"
+root = "home/Library/Group Containers"
+seed = 108
+dirs = 800
+files = 3800
+max_depth = 6
+size_max = "8K"
+size_skew = 3
+empty_pct = 55
+age_min = "1h"
+age_max = "2y"
+age_skew = 2
+classes = { data = 6, other = 3 }
+
+[[generate]]
+case = "home"
+root = "home/Pictures"
+seed = 109
+dirs = 30
+files = 300
+max_depth = 3
+size_max = "32K"
+size_skew = 1
+empty_pct = 0
+age_min = "1d"
+age_max = "8y"
+age_skew = 1
+classes = { media = 1 }
+
+[[generate]]
+case = "home"
+root = "home/Music"
+seed = 110
+dirs = 40
+files = 250
+max_depth = 3
+size_max = "80K"
+size_skew = 1
+empty_pct = 0
+age_min = "30d"
+age_max = "12y"
+age_skew = 1
+classes = { media = 1 }
+
+[[generate]]
+case = "home"
+root = "home/.cache"
+seed = 111
+dirs = 600
+files = 4000
+max_depth = 5
+size_max = "8K"
+size_skew = 3
+empty_pct = 50
+age_min = "1h"
+age_max = "1y"
+age_skew = 2
+classes = { data = 3, other = 3, binaries = 1 }
+
+[[generate]]
+case = "home"
+root = "home/.config"
+seed = 112
+dirs = 120
+files = 500
+max_depth = 4
+size_max = "4K"
+size_skew = 2
+empty_pct = 10
+age_min = "1d"
+age_max = "5y"
+age_skew = 2
+classes = { data = 4, code = 1 }
+
+[[generate]]
+case = "home"
+root = "home/.local/share"
+seed = 113
+dirs = 500
+files = 2500
+max_depth = 5
+size_max = "8K"
+size_skew = 3
+empty_pct = 35
+age_min = "1d"
+age_max = "3y"
+age_skew = 2
+classes = { data = 4, docs = 1, other = 2 }
+
+[[generate]]
+case = "home"
+root = "home/Library/Mail"
+seed = 114
+dirs = 300
+files = 5000
+max_depth = 5
+size_max = "8K"
+size_skew = 2
+empty_pct = 85
+age_min = "1h"
+age_max = "6y"
+age_skew = 2
+classes = { data = 3, docs = 1, other = 1 }
