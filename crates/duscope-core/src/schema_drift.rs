@@ -207,65 +207,72 @@ fn p0_repo_05_every_derived_file_has_its_type() {
     );
 }
 
-/// The placeholder with one more field, as a change to the type would leave it.
+// A type for the drift check's own tests, kept apart from the registered types
+// so that changing one of those fails only
+// `p0_repo_05_derived_schemas_equal_their_files`. Plain comments, not doc
+// comments: a doc comment would become the schema's description.
 #[derive(JsonSchema)]
-#[schemars(rename = "PlaceholderEnvelope")]
 #[allow(dead_code)]
-struct ChangedPlaceholder {
+struct Sample {
     /// Whether the command succeeded.
     ok: bool,
-    /// The version of the envelope schema.
-    schema_version: String,
-    /// The rows.
-    entries: Vec<crate::envelope::PlaceholderEntry>,
-    /// The number of rows in `entries`.
-    returned_count: u64,
+    /// Where the next page starts, or null on the last page.
+    next_cursor: Option<String>,
+}
+
+// `Sample` with one more field, as a change to the type would leave it.
+#[derive(JsonSchema)]
+#[schemars(rename = "Sample")]
+#[allow(dead_code)]
+struct SampleWithAField {
+    /// Whether the command succeeded.
+    ok: bool,
     /// Where the next page starts, or null on the last page.
     next_cursor: Option<String>,
     /// A field added without updating the file.
     added_count: u64,
 }
 
+/// The file `envelope/sample.schema.json` as `Sample` derives it.
+fn sample_file() -> Value {
+    let mut file = derive::<Sample>();
+    file["$id"] = Value::from("sample.schema.json");
+    file
+}
+
 #[test]
 fn p0_repo_05_drift_check_fails_a_changed_type() {
-    let name = "envelope/placeholder.schema.json";
-    let mut file = derive::<PlaceholderEnvelope>();
-    file["$id"] = Value::from("placeholder.schema.json");
-    let text = file.to_string();
+    let name = "envelope/sample.schema.json";
+    let text = sample_file().to_string();
     assert_eq!(
-        drift(name, &text, &derive::<PlaceholderEnvelope>()),
+        drift(name, &text, &derive::<Sample>()),
         Vec::<String>::new()
     );
 
-    let lines = drift(name, &text, &derive::<ChangedPlaceholder>());
+    let lines = drift(name, &text, &derive::<SampleWithAField>());
     assert_eq!(
-        lines[0],
-        "schemas/envelope/placeholder.schema.json differs from the schema derived from its type:"
-    );
-    assert!(
-        lines.contains(&"/properties/added_count: only in the derived schema".to_owned()),
+        lines[..3],
+        [
+            "schemas/envelope/sample.schema.json differs from the schema derived from its type:",
+            "/properties/added_count: only in the derived schema",
+            "/required: [\"ok\",\"next_cursor\"] in the file, \
+             [\"ok\",\"next_cursor\",\"added_count\"] derived",
+        ],
         "{lines:#?}"
     );
     assert!(
-        lines.iter().any(|l| l.starts_with("/required: [")),
+        lines[3].starts_with("Update the file to this schema") && lines[3].contains("added_count"),
         "{lines:#?}"
     );
 
-    let mut wrong_id = file.clone();
+    let mut wrong_id = sample_file();
     wrong_id["$id"] = Value::from("top.schema.json");
-    assert!(
-        drift(
-            name,
-            &wrong_id.to_string(),
-            &derive::<PlaceholderEnvelope>()
-        )
-        .contains(
-            &"/$id: \"top.schema.json\" in the file, \"placeholder.schema.json\" derived"
-                .to_owned()
-        )
+    assert_eq!(
+        drift(name, &wrong_id.to_string(), &derive::<Sample>())[1],
+        "/$id: \"top.schema.json\" in the file, \"sample.schema.json\" derived"
     );
     assert_eq!(
-        drift(name, "{", &derive::<PlaceholderEnvelope>()).len(),
+        drift(name, "{", &derive::<Sample>()).len(),
         1,
         "a file that is not JSON is one problem"
     );
@@ -273,13 +280,15 @@ fn p0_repo_05_drift_check_fails_a_changed_type() {
 
 #[test]
 fn p0_repo_05_drift_check_ignores_extension_keywords() {
-    let name = "envelope/placeholder.schema.json";
-    let mut file = derive::<PlaceholderEnvelope>();
-    file["$id"] = Value::from("placeholder.schema.json");
+    let mut file = sample_file();
     file["x-since"] = Value::from("0.2");
     file["properties"]["next_cursor"]["x-deprecated"] = Value::from("0.3");
     assert_eq!(
-        drift(name, &file.to_string(), &derive::<PlaceholderEnvelope>()),
+        drift(
+            "envelope/sample.schema.json",
+            &file.to_string(),
+            &derive::<Sample>()
+        ),
         Vec::<String>::new()
     );
 }
