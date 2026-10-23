@@ -133,7 +133,10 @@ jobs:
           TZ: America/Los_Angeles
           LC_ALL: fr_FR.UTF-8
         run: |
-          locale -a | grep -Eiq '^fr_FR\.utf-?8$' || { echo "::error::fr_FR.UTF-8 is not available on this runner"; exit 1; }
+          # Not `locale -a | grep -q`: grep exits at the first match, and macOS's
+          # locale then fails to flush, which pipefail reports as a failure.
+          locales=$(locale -a)
+          grep -Eiq '^fr_FR\.utf-?8$' <<<"$locales" || { echo "::error::fr_FR.UTF-8 is not available on this runner"; exit 1; }
           date
           just test
       # The fixture tree (P0-TEST-01) is built and cached here by its manifest hash,
@@ -331,8 +334,9 @@ jobs:
           The budget is \`size_budget\` in the justfile.
           EOF
           )
-          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n1)
+          ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id")
+          id=${ids%%$'\n'*}
           if [[ -n $id ]]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" --jq .html_url
           else
@@ -507,7 +511,7 @@ jobs:
             exit 1
           fi
           fragment="changelog.d/${BASH_REMATCH[1]}.md"
-          if ! printf '%s\n' "${fragments[@]}" | grep -qx "$fragment"; then
+          if ! grep -qx "$fragment" <<<"$(printf '%s\n' "${fragments[@]}")"; then
             echo "::error title=changelog::add $fragment (keep-a-changelog lines under '### Added', '### Fixed', ...) or, when nothing is user-visible, ask the author for the no-changelog label"
             exit 1
           fi
