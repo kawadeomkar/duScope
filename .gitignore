@@ -4,4 +4,14 @@ target/
 # Editors / OS
 .idea/
 .vscode/
+.zed/
+*.swp
+*.swo
+*~
+.#*
+\#*#
 .DS_Store
+
+# Claude Code: agent worktrees and personal settings (a shared .claude/settings.json stays tracked)
+.claude/worktrees/
+.claude/settings.local.json

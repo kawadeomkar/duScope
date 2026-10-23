@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/kawadeomkar/duscope/security
+    about: Report vulnerabilities privately from the Security tab, never in a public issue.
