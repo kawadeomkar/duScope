@@ -1,0 +1,15 @@
+[package]
+name = "duscope-treemap"
+description = "Treemap layout and static rendering for duscope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+duscope-core.workspace = true
+
+[lints]
+workspace = true

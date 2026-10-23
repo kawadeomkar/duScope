@@ -1,0 +1,22 @@
+[package]
+name = "duscope"
+description = "Fast, queryable disk-usage analyzer with JSON output and an MCP server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+duscope-walk.workspace = true
+duscope-core.workspace = true
+duscope-treemap.workspace = true
+duscope-tui.workspace = true
+duscope-mcp.workspace = true
+
+[dev-dependencies]
+cargo_metadata.workspace = true
+
+[lints]
+workspace = true
