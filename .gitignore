@@ -1,0 +1,7 @@
+plan/
+target/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
